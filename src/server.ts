@@ -6,7 +6,7 @@ import { DoclingWorker, DoclingWorkerError } from "./doclingWorker.js";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = join(__dirname, "..");
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 8000);
 const host = process.env.HOST ?? "127.0.0.1";
 const requestTimeoutMs = Number(process.env.DOCLING_REQUEST_TIMEOUT_MS ?? 5 * 60 * 1000);
 
