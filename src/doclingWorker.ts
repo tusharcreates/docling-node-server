@@ -45,11 +45,16 @@ export class DoclingWorker {
       pythonCommand: string;
       scriptPath: string;
       requestTimeoutMs: number;
+      threadsPerWorker?: number;
     },
   ) {}
 
   get status(): DoclingWorkerStatus {
     return this.currentStatus;
+  }
+
+  get pendingCount(): number {
+    return this.pending.size;
   }
 
   async convertPdfUrlToText(url: string, options: ConvertPdfOptions = {}): Promise<string> {
@@ -107,6 +112,9 @@ export class DoclingWorker {
         env: {
           ...process.env,
           PYTHONUNBUFFERED: "1",
+          ...(this.options.threadsPerWorker !== undefined && {
+            DOCLING_THREADS_PER_WORKER: String(this.options.threadsPerWorker),
+          }),
         },
         stdio: ["pipe", "pipe", "pipe"],
       });

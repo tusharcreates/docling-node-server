@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DoclingWorker, DoclingWorkerError } from "./doclingWorker.js";
+import { DoclingWorkerError } from "./doclingWorker.js";
+import { createWorkerPool } from "./doclingWorkerPool.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = join(__dirname, "..");
@@ -10,7 +11,7 @@ const port = Number(process.env.PORT ?? 8000);
 const host = process.env.HOST ?? "127.0.0.1";
 const requestTimeoutMs = Number(process.env.DOCLING_REQUEST_TIMEOUT_MS ?? 5 * 60 * 1000);
 
-const worker = new DoclingWorker({
+const worker = createWorkerPool({
   pythonCommand: process.env.PYTHON ?? "python3",
   scriptPath: join(projectRoot, "python", "docling_worker.py"),
   requestTimeoutMs,

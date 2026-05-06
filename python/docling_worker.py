@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import sys
 import traceback
 from typing import Any
@@ -12,7 +13,8 @@ PROTOCOL_STDOUT = sys.stdout
 sys.stdout = sys.stderr
 
 from docling.datamodel.base_models import InputFormat
-from docling.document_converter import DocumentConverter
+from docling.datamodel.pipeline_options import AcceleratorDevice, AcceleratorOptions, PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 
 
 def emit(payload: dict[str, Any]) -> None:
@@ -50,9 +52,32 @@ def export_text(document: Any) -> str:
         return document.export_to_markdown()
 
 
+def resolve_num_threads() -> int:
+    env = os.environ.get("DOCLING_THREADS_PER_WORKER")
+    if env is not None:
+        try:
+            n = int(env)
+            if n >= 1:
+                return n
+        except ValueError:
+            pass
+    return max(1, (os.cpu_count() or 1))
+
+
 def main() -> int:
     try:
-        converter = DocumentConverter(allowed_formats=[InputFormat.PDF])
+        num_threads = resolve_num_threads()
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.accelerator_options = AcceleratorOptions(
+            num_threads=num_threads,
+            device=AcceleratorDevice.CPU,
+        )
+        converter = DocumentConverter(
+            allowed_formats=[InputFormat.PDF],
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            },
+        )
         converter.initialize_pipeline(InputFormat.PDF)
         emit({"type": "ready"})
     except Exception as exc:
