@@ -2,7 +2,9 @@
 
 Small Node.js + TypeScript service that exposes a route for converting a PDF URL into a downloadable `.txt` file.
 
-Docling is Python-only, so the Node server starts one long-lived Python child process. That process constructs a single Docling `DocumentConverter`, warms the PDF pipeline once with `initialize_pipeline(InputFormat.PDF)`, then handles all conversion requests over newline-delimited JSON.
+Docling is Python-only, so the Node server starts a long-lived Python worker pool. Each worker constructs a Docling `DocumentConverter`, warms the PDF pipeline once with `initialize_pipeline(InputFormat.PDF)`, then handles conversion requests over newline-delimited JSON.
+
+By default the pool starts one worker and gives it all available CPU threads. This is the fastest shape for single-PDF latency. For higher throughput across many simultaneous PDFs, set `DOCLING_WORKERS` to the number of Python workers you want; CPU threads are divided across those workers unless `DOCLING_THREADS_PER_WORKER` is set explicitly.
 
 ## Setup
 
@@ -101,6 +103,9 @@ module.exports = {
         HOST: "0.0.0.0",
         PYTHON: ".venv/bin/python",
         DOCLING_REQUEST_TIMEOUT_MS: 300000,
+        DOCLING_WORKERS: 1,
+        DOCLING_OCR: "false",
+        DOCLING_TABLE_STRUCTURE: "false",
       },
     },
   ],
@@ -119,3 +124,13 @@ pm2 start ecosystem.config.js
 - `HOST`: HTTP bind host. Defaults to `127.0.0.1`.
 - `PYTHON`: Python executable used for the Docling worker. Defaults to `python3`.
 - `DOCLING_REQUEST_TIMEOUT_MS`: conversion timeout. Defaults to `300000`.
+- `DOCLING_WORKERS`: Python worker count. Defaults to `1` so one PDF can use all CPU threads.
+- `DOCLING_THREADS_PER_WORKER`: CPU thread budget per Python worker. Defaults to available CPU threads divided by `DOCLING_WORKERS`.
+- `DOCLING_OCR`: enables Docling OCR when set to `true`. Defaults to `false` for faster text extraction from digital PDFs.
+- `DOCLING_TABLE_STRUCTURE`: enables Docling table-structure analysis when set to `true`. Defaults to `false` for faster plain-text extraction.
+
+Example throughput profile for a 12-core host with many PDFs in flight:
+
+```bash
+DOCLING_WORKERS=4 DOCLING_THREADS_PER_WORKER=3 PYTHON=.venv/bin/python npm run start
+```

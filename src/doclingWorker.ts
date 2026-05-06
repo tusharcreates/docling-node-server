@@ -112,9 +112,7 @@ export class DoclingWorker {
         env: {
           ...process.env,
           PYTHONUNBUFFERED: "1",
-          ...(this.options.threadsPerWorker !== undefined && {
-            DOCLING_THREADS_PER_WORKER: String(this.options.threadsPerWorker),
-          }),
+          ...nativeThreadEnv(this.options.threadsPerWorker),
         },
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -221,4 +219,20 @@ export class DoclingWorker {
       this.pending.delete(id);
     }
   }
+}
+
+function nativeThreadEnv(threadsPerWorker: number | undefined): Record<string, string> {
+  if (threadsPerWorker === undefined) {
+    return {};
+  }
+
+  const threads = String(threadsPerWorker);
+  return {
+    DOCLING_THREADS_PER_WORKER: threads,
+    OMP_NUM_THREADS: threads,
+    MKL_NUM_THREADS: threads,
+    OPENBLAS_NUM_THREADS: threads,
+    VECLIB_MAXIMUM_THREADS: threads,
+    NUMEXPR_NUM_THREADS: threads,
+  };
 }

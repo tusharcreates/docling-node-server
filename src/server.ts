@@ -37,6 +37,10 @@ const server = createServer(async (request, response) => {
       sendJson(response, 200, {
         ok: worker.status === "ready",
         doclingWorker: worker.status,
+        workers: worker.workerCount,
+        busyWorkers: worker.busyWorkerCount,
+        queuedRequests: worker.queuedCount,
+        threadsPerWorker: worker.threadsPerWorker,
       });
       return;
     }

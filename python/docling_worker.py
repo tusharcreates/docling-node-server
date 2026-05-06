@@ -12,6 +12,53 @@ PROTOCOL_STDOUT = sys.stdout
 # the Node process can parse stdout as newline-delimited JSON.
 sys.stdout = sys.stderr
 
+
+def resolve_bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    print(
+        f'{name}="{raw}" is not a boolean; falling back to {str(default).lower()}',
+        file=sys.stderr,
+        flush=True,
+    )
+    return default
+
+
+def resolve_num_threads() -> int:
+    env = os.environ.get("DOCLING_THREADS_PER_WORKER")
+    if env is not None:
+        try:
+            n = int(env)
+            if n >= 1:
+                return n
+        except ValueError:
+            pass
+    return max(1, (os.cpu_count() or 1))
+
+
+def configure_native_threads(num_threads: int) -> None:
+    threads = str(num_threads)
+    for name in (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    ):
+        os.environ.setdefault(name, threads)
+
+
+NUM_THREADS = resolve_num_threads()
+configure_native_threads(NUM_THREADS)
+
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import AcceleratorDevice, AcceleratorOptions, PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -52,24 +99,15 @@ def export_text(document: Any) -> str:
         return document.export_to_markdown()
 
 
-def resolve_num_threads() -> int:
-    env = os.environ.get("DOCLING_THREADS_PER_WORKER")
-    if env is not None:
-        try:
-            n = int(env)
-            if n >= 1:
-                return n
-        except ValueError:
-            pass
-    return max(1, (os.cpu_count() or 1))
-
-
 def main() -> int:
     try:
-        num_threads = resolve_num_threads()
+        do_ocr = resolve_bool_env("DOCLING_OCR", False)
+        do_table_structure = resolve_bool_env("DOCLING_TABLE_STRUCTURE", False)
         pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = do_ocr
+        pipeline_options.do_table_structure = do_table_structure
         pipeline_options.accelerator_options = AcceleratorOptions(
-            num_threads=num_threads,
+            num_threads=NUM_THREADS,
             device=AcceleratorDevice.CPU,
         )
         converter = DocumentConverter(
@@ -79,6 +117,12 @@ def main() -> int:
             },
         )
         converter.initialize_pipeline(InputFormat.PDF)
+        print(
+            "Docling worker ready "
+            f"(threads={NUM_THREADS}, ocr={do_ocr}, table_structure={do_table_structure})",
+            file=sys.stderr,
+            flush=True,
+        )
         emit({"type": "ready"})
     except Exception as exc:
         print(traceback.format_exc(), file=sys.stderr, flush=True)
